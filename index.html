@@ -3,119 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastAPI + Postgres + Redis Client</title>
+    <title>Montre | Official Store</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            max-width: 500px; 
-            margin: 40px auto; 
-            padding: 20px; 
-            color: #333;
+        body { font-family: 'Helvetica', sans-serif; margin: 0; padding: 0; color: #333; }
+        header { padding: 2rem; text-align: center; border-bottom: 1px solid #eee; }
+        h1 { font-size: 2.5rem; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+        
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 20px; }
+        
+        /* Grid Produk */
+        .product-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
+            gap: 2rem; 
         }
-        .form-box {
-            background: #f9f9f9;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #eee;
-            margin-bottom: 20px;
-        }
-        input { 
-            padding: 12px; 
-            width: 100%; 
-            margin-bottom: 12px; 
-            box-sizing: border-box; 
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button { 
-            padding: 12px; 
-            width: 100%; 
-            background-color: #0070f3;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:hover { background-color: #0051a8; }
-        .note { 
-            background: #fff; 
-            padding: 14px; 
-            margin-bottom: 8px; 
-            border-left: 5px solid #0070f3;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border-radius: 0 4px 4px 0;
-        }
-        .status { color: #666; font-size: 0.9em; font-style: italic; }
+        
+        .product-card { border: 1px solid #f0f0f0; padding: 15px; text-align: center; transition: 0.3s; }
+        .product-card:hover { border-color: #333; }
+        .product-card img { width: 100%; height: 300px; object-fit: cover; background: #eee; }
+        .product-card h3 { margin: 10px 0; font-size: 1.1rem; }
+        .price { font-weight: bold; color: #555; }
+        
+        button { background: #000; color: #fff; border: none; padding: 10px 20px; margin-top: 10px; cursor: pointer; width: 100%; }
+        button:hover { background: #333; }
     </style>
 </head>
 <body>
 
-    <h2>Tambah Catatan Baru</h2>
-    <div class="form-box">
-        <input type="text" id="noteInput" placeholder="Tulis catatan untuk disimpan ke Postgres...">
-        <button onclick="sendNote()">Simpan ke Database</button>
+    <header>
+        <h1>Montre</h1>
+        <p>Timeless Essentials</p>
+    </header>
+
+    <div class="container">
+        <h2>New Arrivals</h2>
+        <div class="product-grid" id="productContainer">
+            <!-- Data produk nanti bakal muncul di sini via Javascript -->
+            <p>Loading produk...</p>
+        </div>
     </div>
 
-    <h2>Daftar Catatan (Cached via Redis):</h2>
-    <div id="notesContainer" class="status">Menghubungkan ke API...</div>
-
     <script>
-        // GANTI URL INI dengan URL dari Render kamu nanti (tanpa garis miring / di ujung)
+        // Nanti ganti dengan URL Backend Vercel kamu
         const BACKEND_URL = "https://made-neon.vercel.app"; 
 
-        // Fungsi mengambil catatan dari FastAPI
-        async function getNotes() {
-            const container = document.getElementById('notesContainer');
+        async function fetchProducts() {
+            const container = document.getElementById('productContainer');
             try {
-                const response = await fetch(`${BACKEND_URL}/notes`);
-                if (!response.ok) throw new Error("Gagal mengambil data");
-                
-                const notes = await response.json();
-                
-                if (notes.length === 0) {
-                    container.className = "status";
-                    container.innerHTML = "Belum ada catatan di database.";
-                    return;
-                }
-                
-                container.className = ""; // Hapus style status loading
-                container.innerHTML = notes.map(content => `<div class="note">${content}</div>`).join('');
+                // Nanti endpointnya akan /products
+                const response = await fetch(`${BACKEND_URL}/products`);
+                const products = await response.json();
+
+                container.innerHTML = products.map(p => `
+                    <div class="product-card">
+                        <img src="${p.image_url}" alt="${p.name}">
+                        <h3>${p.name}</h3>
+                        <p class="price">Rp ${p.price.toLocaleString()}</p>
+                        <button>Add to Cart</button>
+                    </div>
+                `).join('');
             } catch (err) {
-                container.className = "status";
-                container.innerText = 'Gagal terhubung ke backend FastAPI. Pastikan server sudah bangun dari sleep mode.';
-                console.error(err);
+                container.innerHTML = "Belum ada produk atau backend belum aktif.";
             }
         }
 
-        // Fungsi mengirim catatan ke FastAPI
-        async function sendNote() {
-            const input = document.getElementById('noteInput');
-            const noteText = input.value.trim();
-            
-            if (!noteText) return;
-
-            try {
-                const response = await fetch(`${BACKEND_URL}/notes`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ note: noteText }) // Sesuai dengan data.get("note") di Python
-                });
-
-                if (response.ok) {
-                    input.value = '';
-                    getNotes(); // Segarkan list (ini juga otomatis nge-clear cache Redis di backend)
-                } else {
-                    alert("Gagal menyimpan catatan.");
-                }
-            } catch (err) {
-                alert("Terjadi kesalahan jaringan.");
-                console.error(err);
-            }
-        }
-
-        // Langsung load data pas halaman web dibuka
-        getNotes();
+        // Jalankan fungsi
+        fetchProducts();
     </script>
 </body>
 </html>
