@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI + Postgres + Redis Client</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            max-width: 500px; 
+            margin: 40px auto; 
+            padding: 20px; 
+            color: #333;
+        }
+        .form-box {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+        input { 
+            padding: 12px; 
+            width: 100%; 
+            margin-bottom: 12px; 
+            box-sizing: border-box; 
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button { 
+            padding: 12px; 
+            width: 100%; 
+            background-color: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #0051a8; }
+        .note { 
+            background: #fff; 
+            padding: 14px; 
+            margin-bottom: 8px; 
+            border-left: 5px solid #0070f3;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-radius: 0 4px 4px 0;
+        }
+        .status { color: #666; font-size: 0.9em; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <h2>Tambah Catatan Baru</h2>
+    <div class="form-box">
+        <input type="text" id="noteInput" placeholder="Tulis catatan untuk disimpan ke Postgres...">
+        <button onclick="sendNote()">Simpan ke Database</button>
+    </div>
+
+    <h2>Daftar Catatan (Cached via Redis):</h2>
+    <div id="notesContainer" class="status">Menghubungkan ke API...</div>
+
+    <script>
+        // GANTI URL INI dengan URL dari Render kamu nanti (tanpa garis miring / di ujung)
+        const BACKEND_URL = "https://backend-kamu.onrender.com"; 
+
+        // Fungsi mengambil catatan dari FastAPI
+        async function getNotes() {
+            const container = document.getElementById('notesContainer');
+            try {
+                const response = await fetch(`${BACKEND_URL}/notes`);
+                if (!response.ok) throw new Error("Gagal mengambil data");
+                
+                const notes = await response.json();
+                
+                if (notes.length === 0) {
+                    container.className = "status";
+                    container.innerHTML = "Belum ada catatan di database.";
+                    return;
+                }
+                
+                container.className = ""; // Hapus style status loading
+                container.innerHTML = notes.map(content => `<div class="note">${content}</div>`).join('');
+            } catch (err) {
+                container.className = "status";
+                container.innerText = 'Gagal terhubung ke backend FastAPI. Pastikan server sudah bangun dari sleep mode.';
+                console.error(err);
+            }
+        }
+
+        // Fungsi mengirim catatan ke FastAPI
+        async function sendNote() {
+            const input = document.getElementById('noteInput');
+            const noteText = input.value.trim();
+            
+            if (!noteText) return;
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note: noteText }) // Sesuai dengan data.get("note") di Python
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    getNotes(); // Segarkan list (ini juga otomatis nge-clear cache Redis di backend)
+                } else {
+                    alert("Gagal menyimpan catatan.");
+                }
+            } catch (err) {
+                alert("Terjadi kesalahan jaringan.");
+                console.error(err);
+            }
+        }
+
+        // Langsung load data pas halaman web dibuka
+        getNotes();
+    </script>
+</body>
+</html>
